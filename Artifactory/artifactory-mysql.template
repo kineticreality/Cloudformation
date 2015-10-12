@@ -9,6 +9,24 @@
       "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance",
       "Type": "AWS::EC2::KeyPair::KeyName",
       "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+    },
+	
+	 "SecurityGroupIDS": {
+        "Description": "Security Group IDs within VPC",
+        "Default": "secgroupid",
+        "Type": "List<AWS::EC2::SecurityGroup::Id>"
+    },
+
+    "SubnetID": {
+        "Description": "Subnet Range within VPC",
+        "Default": "subnetid",
+        "Type": "AWS::EC2::Subnet::Id"
+    },
+
+    "VPCID": {
+      "Default": "vpcid",
+      "Description": "Destination VPC",
+      "Type": "AWS::EC2::VPC::Id"
     },    
 
     "DBName": {
