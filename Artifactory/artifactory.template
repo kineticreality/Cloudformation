@@ -79,7 +79,7 @@
           "Type" : "AWS::S3::Bucket",
           "Properties" : {
             "AccessControl" : "Private",
-            "BucketName" : "chef-server-cookbooks-bucket",
+            "BucketName" : "artifactory-bucket",
             "VersioningConfiguration": {
               "Status": "Enabled"
             }
