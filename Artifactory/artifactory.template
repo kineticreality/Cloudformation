@@ -244,7 +244,7 @@
   "Outputs" : {
     "ArtifactoryServerURL" : {
       "Value" : { "Fn::Join" : ["", ["https://", { "Fn::GetAtt" : [ "ArtifactoryServer", "PublicDnsName" ]}]] },
-      "Description" : "URL for newly created Enterprise Chef server"
+      "Description" : "URL for newly created Artifactory server"
     }
   }
 }
