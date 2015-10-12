@@ -1,0 +1,250 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Creates a standalone Artifactory Server.",
+
+  "Parameters" : {
+
+    "AMIImage" : {
+      "Default": "ami-9ff7e8af",
+      "Description": "AMI ImageID",
+      "Type": "String"
+    },
+
+    "KeyName": {
+      "ConstraintDescription": "Must be the name of an existing EC2 KeyPair.",
+      "Default": "Keyname",
+      "Description": "Name of an existing EC2 KeyPair",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+
+    "SecurityGroupIDS": {
+        "Description": "Security Group IDs within VPC",
+        "Default": "securitygroupid",
+        "Type": "List<AWS::EC2::SecurityGroup::Id>"
+    },
+
+    "SubnetID": {
+        "Description": "Subnet Range within VPC",
+        "Default": "subnetid",
+        "Type": "AWS::EC2::Subnet::Id"
+    },
+
+    "VPCID": {
+      "Default": "vpc-id",
+      "Description": "Destination VPC",
+      "Type": "AWS::EC2::VPC::Id"
+    }
+  },
+
+  "Mappings" : {
+    "S3RegionToEndpoint" : {
+      "us-east-1"        : { "endpoint" : "s3.amazonaws.com" },
+      "us-west-2"        : { "endpoint" : "s3-us-west-2.amazonaws.com" },
+      "us-west-1"        : { "endpoint" : "s3-us-west-1.amazonaws.com" },
+      "eu-west-1"        : { "endpoint" : "s3-eu-west-1.amazonaws.com" },
+      "eu-central-1"     : { "endpoint" : "s3-eu-central-1.amazonaws.com" },
+      "ap-southeast-1"   : { "endpoint" : "s3-ap-southeast-1.amazonaws.com" },
+      "ap-southeast-2"   : { "endpoint" : "s3-ap-southeast-2.amazonaws.com" },
+      "ap-northeast-1"   : { "endpoint" : "s3-ap-northeast-1.amazonaws.com" },
+      "sa-east-1"        : { "endpoint" : "s3-sa-east-1.amazonaws.com" }
+    }
+  },
+
+  "Resources" : {
+
+       "CfnUser" : {
+          "Type" : "AWS::IAM::User",
+          "Properties" : {
+            "Path": "/",
+            "Policies": [ {
+              "PolicyName": "root",
+              "PolicyDocument": { "Statement": [ {
+                "Effect":"Allow",
+                "Action":"cloudformation:DescribeStackResource",
+                "Resource":"*"
+              } ] }
+            } ]
+          }
+        },
+
+        "AccessKey" : {
+          "Type" : "AWS::IAM::AccessKey",
+          "Properties" : {
+            "UserName" : { "Ref" : "CfnUser" }
+          }
+        },
+
+        "CookbooksBucket" : {
+          "Type" : "AWS::S3::Bucket",
+          "Properties" : {
+            "AccessControl" : "Private",
+            "BucketName" : "chef-server-cookbooks-bucket",
+            "VersioningConfiguration": {
+              "Status": "Enabled"
+            }
+          }
+        },
+
+        "CookbooksBucketPolicy" : {
+            "Type" : "AWS::S3::BucketPolicy",
+            "Properties" : {
+                "PolicyDocument": {
+                    "Version"      : "2008-10-17",
+                    "Id"           : "CookbooksWritePolicy",
+                    "Statement"    : [
+                        {
+                            "Action"     : ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+                            "Effect"     : "Allow",
+                            "Resource"   : { "Fn::Join" : ["", ["arn:aws:s3:::", {"Ref" : "CookbooksBucket"} , "/*"]]},
+                            "Principal"  : { "AWS": {"Fn::GetAtt" : ["CfnUser", "Arn"]} }
+                        },
+                        {
+                            "Action"     : ["s3:ListBucket"],
+                            "Effect"     : "Allow",
+                            "Resource"   : { "Fn::Join" : ["", ["arn:aws:s3:::", {"Ref" : "CookbooksBucket"}]]},
+                            "Principal"  : { "AWS": {"Fn::GetAtt" : ["CfnUser", "Arn"]} }
+                        }
+                    ]
+                },
+                "Bucket" : {"Ref" : "CookbooksBucket"}
+            }
+        },
+
+    "ArtifactoryServer" : {
+      "Type": "AWS::EC2::Instance",
+      "Metadata" : {
+        "Comment1" : "Configure ChefDK, Java, Artifactory",
+
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "yum" : {
+                "ntp"      : [],
+                "crontabs" : [],
+                "git"      : [],
+                "freetype" : [],
+                "libpng"   : [],
+                "wget"     : [],
+                "curl"     : []
+              }
+            },
+            "files": {
+              
+              "/etc/chef/solo.rb" : {
+                "content": { "Fn::Join" : ["", [
+                  "cookbook_path [\n'/var/chef/cookbooks'\n]\n"
+                ]]},
+                "mode" : "000644",
+                "owner": "root",
+                "group": "root"
+              },
+			  "/etc/chef/runlist.json" : {
+                "content": { "Fn::Join" : ["", [
+                  "run_list : [\n'recipe[java::default]'\n]\n"
+                ]]},
+                "mode" : "000644",
+                "owner": "root",
+                "group": "root"
+              }
+            },
+            "services": {
+              "sysvinit": {
+                "ntpd": {
+                  "enabled" : "true",
+                  "ensureRunning" : "true"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId"          : {"Ref" : "AMIImage"},
+        "InstanceType"     : "t2.medium",
+        "KeyName"          : { "Ref" : "KeyName" },
+        "NetworkInterfaces": [{
+            "AssociatePublicIpAddress": "true",
+            "DeleteOnTermination": "true",
+            "DeviceIndex": "0",
+            "GroupSet": { "Ref": "SecurityGroupIDS" },
+            "SubnetId": { "Ref": "SubnetID" }
+        }],
+        "UserData"         : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+
+          "function error_exit\n",
+          "{\n",
+          "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "PUBLIC_DNS=`(curl http://169.254.169.254/latest/meta-data/public-hostname)`\n",
+          "PRIVATE_IPV4=`(curl http://169.254.169.254/latest/meta-data/local-ipv4)`\n",
+          "SHORTNAME=`(echo $PUBLIC_DNS | cut -d \".\" -f1)`\n",
+          "export HOME=\/root\n",
+          "yum -y install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.amzn1.noarch.rpm\n",
+		   "yum -y update ",
+          "export PATH=$PATH:/opt/aws/bin\n",
+          "cfn-init --region ", { "Ref" : "AWS::Region" },
+          "    -v -s ", { "Ref" : "AWS::StackName" }, " -r ArtifactoryServer ",
+          "         --access-key ", { "Ref" : "AccessKey" },
+          "         --secret-key ", {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]},
+          "         --region     ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+          "## Download & Install ChefDK\n",
+          "sudo yum install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.9.0-1.el6.x86_64.rpm || error_exit 'Failed to install Chef DK' \n",
+		  "mkdir -p /etc/chef/\n",
+		  "mkdir -p /var/chef/cookbooks\n",
+		  "git config --global user.email chef@localhost.local\n",
+		  "git init /var/chef\n",
+		  "touch /var/chef/init\n",
+		  "cd /var/chef;git add .\n",
+		  "git commit -a -m init >> /var/log/chefdk-install.log \n",
+		  "knife cookbook site install java >> /var/log/chefdk-install.log \n",
+
+          "hostname $SHORTNAME\n",
+          "echo $PUBLIC_DNS | tee /etc/hostname\n",
+          "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
+          "chef-server-ctl reconfigure >> /var/log/chef-install.log\n",
+          "opscode-manage-ctl reconfigure >> /var/log/chef-install.log\n",
+      
+	      "# If all went well, signal success\n",
+          "cfn-signal -e $? -r 'Artifactory Server configuration' '", { "Ref" : "WaitHandle" }, "'\n"
+        ]]}}
+      }
+    },
+
+    "WaitHandle" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle"
+    },
+
+    "WaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "DependsOn" : "ArtifactoryServer",
+      "Properties" : {
+        "Handle" : {"Ref" : "WaitHandle"},
+        "Timeout" : "600"
+      }
+    },
+
+    "ArtifactoryServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP/S access via ports 80 and 443",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "443", "ToPort" : "443", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0"}
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "ArtifactoryServerURL" : {
+      "Value" : { "Fn::Join" : ["", ["https://", { "Fn::GetAtt" : [ "ArtifactoryServer", "PublicDnsName" ]}]] },
+      "Description" : "URL for newly created Enterprise Chef server"
+    }
+  }
+}
