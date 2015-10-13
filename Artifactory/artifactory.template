@@ -11,6 +11,11 @@
       "Type": "String"
     },
 
+	"InstanceType" : {
+	"Default" : "m2.medium",
+	"Type" : "String"
+	},
+
     "KeyName": {
       "ConstraintDescription": "Must be the name of an existing EC2 KeyPair.",
       "Default": "Keypair-Name",
@@ -116,7 +121,7 @@
       },
       "Properties": {
         "ImageId"          : {"Ref" : "AMIImage"},
-        "InstanceType"     : "t2.medium",
+        "InstanceType"     : {"Ref" : "InstanceType"},
         "KeyName"          : { "Ref" : "KeyName" },
         "NetworkInterfaces": [{
             "AssociatePublicIpAddress": "true",
