@@ -13,25 +13,25 @@
 
     "KeyName": {
       "ConstraintDescription": "Must be the name of an existing EC2 KeyPair.",
-      "Default": "PSDeployPipeline",
+      "Default": "Keypair-Name",
       "Description": "Name of an existing EC2 KeyPair",
       "Type": "AWS::EC2::KeyPair::KeyName"
     },
 
     "SecurityGroupIDS": {
         "Description": "Security Group IDs within VPC",
-        "Default": "sg-ff483c9a",
+        "Default": "security-group-id",
         "Type": "List<AWS::EC2::SecurityGroup::Id>"
     },
 
     "SubnetID": {
         "Description": "Subnet Range within VPC",
-        "Default": "subnet-cc2eada9",
+        "Default": "subnet--d",
         "Type": "AWS::EC2::Subnet::Id"
     },
 
     "VPCID": {
-      "Default": "vpc-1577d770",
+      "Default": "vpc-id",
       "Description": "Destination VPC",
       "Type": "AWS::EC2::VPC::Id"
     }
@@ -94,21 +94,6 @@
               }
             },
             "files": {
-              "/etc/yum.repos.d/chef-stable.repo" : {
-                "content": { "Fn::Join" : ["", [
-                  "[chef-stable]\n",
-                  "name=Chef Stable Repo\n",
-                  "baseurl=https://packagecloud.io/chef/stable/el/6/$basearch\n",
-                  "enabled=1\n",
-                  "gpgcheck=1\n",
-                  "gpgkey=https://downloads.chef.io/packages-chef-io-public.key\n",
-                  "sslcacert=/etc/pki/tls/certs/ca-bundle.crt\n",
-                  "sslverify=1\n"
-                 ]]},
-                 "mode" : "000644",
-                 "owner": "root",
-                 "group": "root"
-              },
                 "/etc/chef/solo.rb" : {
                 "content": { "Fn::Join" : ["", [
                   "cookbook_path [\n'/var/chef/cookbooks'\n]\n"
