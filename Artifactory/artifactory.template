@@ -6,7 +6,7 @@
   "Parameters" : {
 
     "AMIImage" : {
-      "Default": "ami-db7b39e1",
+      "Default": "ami-9ff7e8af",
       "Description": "AMI ImageID",
       "Type": "String"
     },
