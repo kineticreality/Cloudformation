@@ -182,7 +182,7 @@
           "hostname $SHORTNAME\n",
           "echo $PUBLIC_DNS | tee /etc/hostname\n",
           "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
-		  "service start artifactory\n",
+		  "service artfactory start\n",
          "# If all went well, signal success\n",
           "cfn-signal -e $? -r 'Artifactory Server configuration' '", { "Ref" : "WaitHandle" }, "'\n"
         ]]}}
