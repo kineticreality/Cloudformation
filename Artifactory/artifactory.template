@@ -177,9 +177,12 @@
 		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/default.rb -O /var/chef/cookbooks/java/attributes/default.rb\n",
 		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/artifactory-runlist.json -O /etc/chef/runlist.json\n",
 		  "chef-solo -j /etc/chef/runlist.json >> /var/log/chef-solo-output.log\n",
+		  "wget https://bintray.com/jfrog/artifactory-pro-rpms/rpm -O /etc/yum.repos.d/rebintray-jfrog-artifactory-pro-rpms.repo\n",
+		  "yum -y install jfrog-artifactory-pro\n",
           "hostname $SHORTNAME\n",
           "echo $PUBLIC_DNS | tee /etc/hostname\n",
           "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
+		  "service start artifactory\n",
          "# If all went well, signal success\n",
           "cfn-signal -e $? -r 'Artifactory Server configuration' '", { "Ref" : "WaitHandle" }, "'\n"
         ]]}}
