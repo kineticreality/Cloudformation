@@ -109,30 +109,9 @@
                  "owner": "root",
                  "group": "root"
               },
-              "/etc/opscode/chef-server.rb" : {
-                "content": { "Fn::Join" : ["", [
-                  "bookshelf['enable'] = false\n",
-                  "bookshelf['external_url'] = 'https://", { "Fn::FindInMap" : [ "S3RegionToEndpoint", { "Ref" : "AWS::Region" }, "endpoint"]},"'\n",
-                  "bookshelf['vip'] = '", { "Fn::FindInMap" : [ "S3RegionToEndpoint", { "Ref" : "AWS::Region" }, "endpoint"]},"'\n",
-                  "bookshelf['access_key_id'] = '", { "Ref" : "AccessKey" }, "'\n",
-                  "bookshelf['secret_access_key'] = '", {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]}, "'\n"
-                  
-                ]]},
-                "mode" : "000644",
-                "owner": "root",
-                "group": "root"
-              },
-			  "/etc/chef/solo.rb" : {
+                "/etc/chef/solo.rb" : {
                 "content": { "Fn::Join" : ["", [
                   "cookbook_path [\n'/var/chef/cookbooks'\n]\n"
-                ]]},
-                "mode" : "000644",
-                "owner": "root",
-                "group": "root"
-              },
-			  "/etc/chef/runlist.json" : {
-                "content": { "Fn::Join" : ["", [
-                  "run_list : [\n'recipe[java::default]'\n]\n"
                 ]]},
                 "mode" : "000644",
                 "owner": "root",
@@ -176,7 +155,7 @@
           "export HOME=\/root\n",
 		  "yum -y update\n",
 		  "echo DEBUG-1 >> /var/log/cfn-init-debug.log\n",
-          "yum install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.9.0-1.el6.x86_64.rpm \n",
+          "yum -y install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.9.0-1.el6.x86_64.rpm \n",
 		  "mkdir -p /etc/chef/\n",
 		  "mkdir -p /var/chef/cookbooks\n",
           "yum -y install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.amzn1.noarch.rpm\n",
@@ -195,6 +174,9 @@
 		  "cd /var/chef;git add .\n",
 		  "git commit -a -m init >> /var/log/chefdk-install.log \n",
 		  "knife cookbook site install java >> /var/log/chefdk-install.log \n",
+		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/default.rb -O /var/chef/cookbooks/java/attributes/default.rb\n",
+		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/artifactory-runlist.json -O /etc/chef/runlist.json\n",
+		  "chef-solo -j /etc/chef/runlist.json >> /var/log/chef-solo-output.log\n",
           "hostname $SHORTNAME\n",
           "echo $PUBLIC_DNS | tee /etc/hostname\n",
           "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
