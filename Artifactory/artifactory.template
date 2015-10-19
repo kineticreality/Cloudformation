@@ -6,13 +6,13 @@
   "Parameters" : {
 
     "AMIImage" : {
-      "Default": "ami-9ff7e8af",
+      "Default": "ami-c11856fb",
       "Description": "AMI ImageID",
       "Type": "String"
     },
 
 	"InstanceType" : {
-	"Default" : "m2.medium",
+	"Default" : "t2.medium",
 	"Type" : "String"
 	},
 
@@ -31,7 +31,7 @@
 
     "SubnetID": {
         "Description": "Subnet Range within VPC",
-        "Default": "subnet--d",
+        "Default": "subnet-id",
         "Type": "AWS::EC2::Subnet::Id"
     },
 
@@ -80,6 +80,32 @@
           }
         },
 
+
+	"ArtifactoryVolume01" : {
+                          "Type" : "AWS::EC2::Volume",
+                          "Properties" : {
+                          "Size" : "200",
+                          "VolumeType" : "standard",
+                          "Encrypted" : "true",
+                          "AvailabilityZone" : { "Fn::GetAtt" : [ "ArtifactoryServer", "AvailabilityZone" ] },
+                          "Tags" : [ {
+                          "Key" : "Name",
+                          "Value" : "ArtifactoryDataVolume"
+                          } ]
+                      },
+                          "DeletionPolicy" : "Snapshot"
+                 },
+
+	"MountPoint01" : {
+   "Type" : "AWS::EC2::VolumeAttachment",
+   "Properties" : {
+      "InstanceId" : { "Ref" : "ArtifactoryServer" },
+      "VolumeId"  : { "Ref" : "ArtifactoryVolume01" },
+      "Device" : "/dev/sdh"
+   }
+},     
+   
+
       "ArtifactoryServer" : {
       "Type": "AWS::EC2::Instance",
       "Metadata" : {
@@ -95,13 +121,164 @@
                 "freetype" : [],
                 "libpng"   : [],
                 "wget"     : [],
+                "htop"     : [],
+                "nginx"    : [],
                 "curl"     : []
               }
             },
             "files": {
-                "/etc/chef/solo.rb" : {
+                "/etc/nginx/nginx.conf" : {
+                "content": { "Fn::Join" : ["", [
+                  "user  nginx;\n",
+                 "worker_processes  auto;\n",
+                 "error_log  /var/log/nginx/error.log;\n",
+                 "pid        /var/run/nginx.pid;\n",
+                 "\n",
+                 "events {\n",
+                    " worker_connections 1024;\n",
+                 "}\n",
+                 "\n",
+                 "http {\n",
+                 "    include         /etc/nginx/mime.types;\n",
+                 "    default_type    application/octet-stream;\n",
+                 "\n",
+                 "    log_format  main  '$remote_addr - $remote_user [$time_local] \"$request\" '\n",
+                 "                      '$status $body_bytes_sent \"$http_referer\" '\n",
+                 "                      '\"$http_user_agent\" \"$http_x_forwarded_for\"';\n",
+                 "\n",
+                 "    access_log  /var/log/nginx/access.log  main;\n",
+                 "\n",
+                 "    sendfile            on;\n",
+                 "    tcp_nopush          on;\n",
+                 "    tcp_nodelay         on;\n",
+                 "\n",
+                 "    #keepalive_timeout   0;\n",
+                 "    keepalive_timeout   65;\n",
+                 "    types_hash_max_size 2048;\n",
+                 "\n",
+                 "    include /etc/nginx/conf.d/*.conf;\n",
+                 "\n",
+                 "    index   index.html index.htm;\n",
+                 "\n",
+                 "    server {\n",
+                 "        listen       80;\n",
+                 "        server_name  localhost;\n",
+                 "        root         /usr/share/nginx/html;\n",
+                 "\n",
+                 "        #charset koi8-r;\n",
+                 "\n",
+                 "        #access_log  /var/log/nginx/host.access.log  main;\n",
+                 "\n",
+                 "### Add domain rewrite from HTTP to HTTPS ###",
+                 "        location / {\n",
+                 "          rewrite     ^(.*)   https://servername.domain.name$1 permanent;\n",
+                 "        }\n",
+                 "\n",
+                 "        # redirect server error pages to the static page /40x.html\n",
+                 "        #\n",
+                 "        error_page 404 /404.html;\n",
+                 "        location = /40x.html {\n",
+                 "        }\n",
+                 "\n",
+                 "        # redirect server error pages to the static page /50x.html\n",
+                 "        #\n",
+                 "        error_page 500 502 503 504 /50x.html;\n",
+                 "        location = /50x.html {\n",
+                 "        }\n",
+                 "\n",
+                 "\n",
+                 "    }\n",
+                 "\n",     
+                 "}\n"
+                 
+                 
+                ]]},
+                "mode" : "000644",
+                "owner": "root",
+                "group": "root"
+              },
+	          "/etc/nginx/conf.d/artifactory.conf" : {
+                "content": { "Fn::Join" : ["", [
+                  " upstream artifactory {\n",
+                 "    server localhost:8081;\n",
+                 "}\n",
+                 "\n",
+                 "server {\n",
+                 "    #listen 80;\n",
+                 "    listen 443 ssl;\n",
+                 "    server_name servername.domain.name www.servername.domain.name;\n",
+                 "    \n",
+                 "    ssl on;\n",
+                 "    ssl_certificate         /etc/nginx/ssl/artifactory.crt;\n",
+                 "    ssl_certificate_key     /etc/nginx/ssl/artifactory.key;\n",
+                 "   #ssl_trusted_certificate /etc/nginx/ssl/example.com/ca-certs.pem;\n",
+                 "\n",
+                 "    ssl_session_cache shared:SSL:20m;\n",
+                 "    ssl_session_timeout 10m;\n",
+                 "\n",
+                 "    ssl_prefer_server_ciphers       on;\n",
+                 "    ssl_protocols                   TLSv1 TLSv1.1 TLSv1.2;\n",
+                 "    ssl_ciphers                     ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;\n",
+                 "\n",
+                 "    add_header Strict-Transport-Security \"max-age=31536000\";\n",
+                 "\n",
+                 "    location / {\n",
+                 "        proxy_pass http://artifactory;\n",
+                 "        proxy_set_header Host $host;\n",
+                 "        proxy_set_header X-Real-IP $remote_addr;\n",
+                 "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n",
+                 "        proxy_set_header X-Forwarded-Proto $scheme;\n",
+                 "    }\n",
+                 "}\n"
+                 
+                ]]},
+                "mode" : "000644",
+                "owner": "root",
+                "group": "root"
+              },
+	          "/etc/chef/solo.rb" : {
                 "content": { "Fn::Join" : ["", [
                   "cookbook_path [\n'/var/chef/cookbooks'\n]\n"
+                ]]},
+                "mode" : "000644",
+                "owner": "root",
+                "group": "root"
+              },
+	          "/tmp/certgen.sh" : {
+                "content": { "Fn::Join" : ["", [
+                  "#!/bin/bash\n",
+                 "\n",
+                 "#Required\n",
+                 "domain=artifactory\n",
+                 "commonname=$domain\n",
+                 "\n",
+                 "#Change to your company details\n",
+                 "country=US\n",
+                 "state=NA\n",
+                 "locality=NA\n",
+                 "organization=Artifactory\n",
+                 "organizationalunit=IT\n",
+                 "email=artifactory@server.local\n",
+                 "\n",
+                 "#Optional\n",
+                 "password=dummypassword\n",
+                 "\n",
+                 "echo \"Generating key request for $domain\"\n",
+                 "\n",
+                 "#Generate a key\n",
+                 "openssl genrsa -des3 -passout pass:$password -out /etc/nginx/ssl/$domain.key 2048\n",
+                 "\n",
+                 "#Remove passphrase from the key. Comment the line out to keep the passphrase\n",
+                 "echo \"Removing passphrase from key\"\n",
+                 "openssl rsa -in /etc/nginx/ssl/$domain.key -passin pass:$password -out /etc/nginx/ssl/$domain.key\n",
+                 "\n",
+                 "#Create the request\n",
+                 "echo \"Creating CSR\"\n",
+                 "openssl req -new -key /etc/nginx/ssl/$domain.key -out /etc/nginx/ssl/$domain.csr -passin pass:$password \\n",
+                 "-subj \"/C=$country/ST=$state/L=$locality/O=$organization/OU=$organizationalunit/CN=$commonname/emailAddress=$email\"\n",
+                 "\n",
+                 "##Create Cert\n",
+                 "openssl x509 -req -days 365 -in /etc/nginx/ssl/$domain.csr -signkey /etc/nginx/ssl/$domain.key -out /etc/nginx/ssl/$domain.crt\n"
                 ]]},
                 "mode" : "000644",
                 "owner": "root",
@@ -143,11 +320,18 @@
           "PRIVATE_IPV4=`(curl http://169.254.169.254/latest/meta-data/local-ipv4)`\n",
           "SHORTNAME=`(echo $PUBLIC_DNS | cut -d \".\" -f1)`\n",
           "export HOME=\/root\n",
-		  "yum -y update\n",
-		  "echo DEBUG-1 >> /var/log/cfn-init-debug.log\n",
+
+          "## Mount and Format EBS Volume\n",
+          "while [ ! -e /dev/xvdh ]; do echo waiting for /dev/xvdh to attach; sleep 10; done\n",
+          "mkfs.ext4 /dev/xvdh\n",
+          "mount /dev/xvdh /var/opt\n",
+          "echo \"/dev/xvdh /var/opt ext4 defaults,nofail 0 2\" >> /etc/fstab\n",
+          "yum -y update\n",
+          "echo DEBUG-1 >> /var/log/cfn-init-debug.log\n",
           "yum -y install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.9.0-1.el6.x86_64.rpm \n",
-		  "mkdir -p /etc/chef/\n",
-		  "mkdir -p /var/chef/cookbooks\n",
+          "mkdir -p /etc/chef/\n",
+          "mkdir -p /var/chef/cookbooks\n",
+          "mkdir -p /etc/nginx/ssl\n",
           "yum -y install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.amzn1.noarch.rpm\n",
           "export PATH=$PATH:/opt/aws/bin\n",
           "cfn-init --region ", { "Ref" : "AWS::Region" },
@@ -155,24 +339,27 @@
           "         --access-key ", { "Ref" : "AccessKey" },
           "         --secret-key ", {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]},
           "         --region     ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
-		   "echo DEBUG-2 >> /var/log/cfn-init-debug.log\n",
-          
-		  "## Configure Chef Solo Cookbooks",
+          "echo DEBUG-2 >> /var/log/cfn-init-debug.log\n",
+          "## Configure Chef Solo Cookbooks",
           "git config --global user.email chef@localhost.local\n",
-		  "git init /var/chef\n",
-		  "touch /var/chef/init\n",
-		  "cd /var/chef;git add .\n",
-		  "git commit -a -m init >> /var/log/chefdk-install.log \n",
-		  "knife cookbook site install java >> /var/log/chefdk-install.log \n",
-		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/default.rb -O /var/chef/cookbooks/java/attributes/default.rb\n",
-		  "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/artifactory-runlist.json -O /etc/chef/runlist.json\n",
-		  "chef-solo -j /etc/chef/runlist.json >> /var/log/chef-solo-output.log\n",
-		  "wget https://bintray.com/jfrog/artifactory-pro-rpms/rpm -O /etc/yum.repos.d/rebintray-jfrog-artifactory-pro-rpms.repo\n",
-		  "yum -y install jfrog-artifactory-pro\n",
+          "git init /var/chef\n",
+          "touch /var/chef/init\n",
+          "cd /var/chef;git add .\n",
+          "git commit -a -m init >> /var/log/chefdk-install.log \n",
+          "knife cookbook site install java >> /var/log/chefdk-install.log \n",
+          "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/java-cookbook-default.rb -O /var/chef/cookbooks/java/attributes/default.rb\n",
+          "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/artifactory-runlist.json -O /etc/chef/runlist.json\n",
+          "chef-solo -j /etc/chef/runlist.json >> /var/log/chef-solo-output.log\n",
+          "wget https://bintray.com/jfrog/artifactory-pro-rpms/rpm -O /etc/yum.repos.d/rebintray-jfrog-artifactory-pro-rpms.repo\n",
+          "yum -y install jfrog-artifactory-pro\n",
           "hostname $SHORTNAME\n",
           "echo $PUBLIC_DNS | tee /etc/hostname\n",
           "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
-		  "service artifactory start\n",
+          "chmod +x /tmp/certgen.sh\n",
+          "sh /tmp/certgen.sh\n",
+          "service artifactory start\n",
+          "service nginx start\n",
+          "chkconfig nginx on\n;",
          "# If all went well, signal success\n",
           "cfn-signal -e $? -r 'Artifactory Server configuration' '", { "Ref" : "WaitHandle" }, "'\n"
         ]]}}
