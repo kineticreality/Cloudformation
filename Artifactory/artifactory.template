@@ -11,6 +11,26 @@
       "Type": "String"
     },
 
+	"ArtifactoryFQDN" : {
+	"Default": "artifactory.server.domain",
+	"Description" : "Artifactory Server URL, used for Nginx configuration",
+	"Type": "String"
+	},
+
+	"ChefDKRPM" : {
+    "Description" : "ChefDK RPM Package",
+    "Type" : "String",
+	"Default" : "chefdk-0.6.2-1.el7.x86_64.rpm",
+	"ConstraintDescription": "Must be file.rpm"
+    },
+
+	"ChefDKUrl" : {
+    "Description" : "Download URL for ChefDK",
+    "Type" : "String",
+	"Default" : "https://opscode-omnibus-packages.s3.amazonaws.com/el/7/x86_64/",
+	"ConstraintDescription": "Must be https://url/to/ this is installed using RPM"
+    },
+
 	"InstanceType" : {
 	"Default" : "t2.medium",
 	"Type" : "String"
@@ -152,9 +172,9 @@
                  "    tcp_nopush          on;\n",
                  "    tcp_nodelay         on;\n",
                  "\n",
-                 "    #keepalive_timeout   0;\n",
                  "    keepalive_timeout   65;\n",
                  "    types_hash_max_size 2048;\n",
+                 "    gzip on;\n",
                  "\n",
                  "    include /etc/nginx/conf.d/*.conf;\n",
                  "\n",
@@ -167,9 +187,9 @@
                  "\n",
                  "        #charset koi8-r;\n",
                  "\n",
-                 "        #access_log  /var/log/nginx/host.access.log  main;\n",
+                 "        access_log  /var/log/nginx/host.access.log  main;\n",
                  "\n",
-                 "### Add domain rewrite from HTTP to HTTPS ###",
+                 "### Add domain rewrite from HTTP to HTTPS ###\n",
                  "        location / {\n",
                  "          rewrite     ^(.*)   https://servername.domain.name$1 permanent;\n",
                  "        }\n",
@@ -204,14 +224,13 @@
                  "}\n",
                  "\n",
                  "server {\n",
-                 "    #listen 80;\n",
                  "    listen 443 ssl;\n",
-                 "    server_name servername.domain.name www.servername.domain.name;\n",
+                 "    server_name ", { "Ref" : "ArtifactoryFQDN" },"; \n",
                  "    \n",
                  "    ssl on;\n",
-                 "    ssl_certificate         /etc/nginx/ssl/artifactory.crt;\n",
-                 "    ssl_certificate_key     /etc/nginx/ssl/artifactory.key;\n",
-                 "   #ssl_trusted_certificate /etc/nginx/ssl/example.com/ca-certs.pem;\n",
+                 "    ssl_certificate         /etc/nginx/ssl/",{ "Ref" : "ArtifactoryFQDN" },".crt;\n",
+                 "    ssl_certificate_key     /etc/nginx/ssl/",{ "Ref" : "ArtifactoryFQDN" },".key;\n",
+                 "   #ssl_trusted_certificate /etc/nginx/ssl/",{ "Ref" : "ArtifactoryFQDN" },".pem;\n",
                  "\n",
                  "    ssl_session_cache shared:SSL:20m;\n",
                  "    ssl_session_timeout 10m;\n",
@@ -247,7 +266,7 @@
 	          "/tmp/certgen.sh" : {
                 "content": { "Fn::Join" : ["", [
                   "#!/bin/bash\n",
-                 "domain=artifactory.dev\n",
+                 "domain=",{ "Ref" : "ArtifactoryFQDN" },"\n",
 				 "commonname=$domain\n",
 				 "organization=artifactory.server\n",
 				 "organizationalunit=IT\n",
@@ -309,7 +328,7 @@
           "echo \"/dev/xvdh /var/opt ext4 defaults,nofail 0 2\" >> /etc/fstab\n",
           "yum -y update\n",
           "echo DEBUG-1 >> /var/log/cfn-init-debug.log\n",
-          "yum -y install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.9.0-1.el6.x86_64.rpm \n",
+          "yum -y install ", { "Ref" : "ChefDKUrl" },{ "Ref" : "ChefDKRPM" }, "\n",
           "mkdir -p /etc/chef/\n",
           "mkdir -p /var/chef/cookbooks\n",
           "mkdir -p /etc/nginx/conf.d/\n",
@@ -324,24 +343,24 @@
           "echo DEBUG-2 >> /var/log/cfn-init-debug.log\n",
 		  "chmod +x /tmp/certgen.sh\n",
           "sh /tmp/certgen.sh\n",
-          "## Configure Chef Solo Cookbooks",
+          "## Configure Chef Solo Cookbooks\n",
           "git config --global user.email chef@localhost.local\n",
           "git init /var/chef\n",
           "touch /var/chef/init\n",
           "cd /var/chef;git add .\n",
-          "git commit -a -m init >> /var/log/chefdk-install.log \n",
-          "knife cookbook site install java >> /var/log/chefdk-install.log \n",
+          "git commit -a -m init  \n",
+          "knife cookbook site install java  \n",
           "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/java-cookbook-default.rb -O /var/chef/cookbooks/java/attributes/default.rb\n",
           "wget https://raw.githubusercontent.com/kineticreality/Cloudformation/master/Artifactory/artifactory-runlist.json -O /etc/chef/runlist.json\n",
-          "chef-solo -j /etc/chef/runlist.json >> /var/log/chef-solo-output.log\n",
+          "chef-solo -j /etc/chef/runlist.json \n",
           "wget https://bintray.com/jfrog/artifactory-pro-rpms/rpm -O /etc/yum.repos.d/rebintray-jfrog-artifactory-pro-rpms.repo\n",
           "yum -y install jfrog-artifactory-pro\n",
           "hostname $SHORTNAME\n",
           "echo $PUBLIC_DNS | tee /etc/hostname\n",
           "echo \"$PRIVATE_IPV4 $PUBLIC_DNS $SHORTNAME\" >> /etc/hosts\n",
-          "service artifactory start\n",
           "service nginx start\n",
-          "chkconfig nginx on\n;",
+          "chkconfig nginx on\n",
+		  "service artifactory start\n",
          "# If all went well, signal success\n",
           "cfn-signal -e $? -r 'Artifactory Server configuration' '", { "Ref" : "WaitHandle" }, "'\n"
         ]]}}
