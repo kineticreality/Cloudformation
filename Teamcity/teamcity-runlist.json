@@ -1,6 +1,7 @@
 {
 "run_list": [
-"recipe[java::default]"
+"recipe[java::default]",
+"recipe[teamcity-cookbook::default]"
 ]
 }
 
